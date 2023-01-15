@@ -103,10 +103,6 @@ pair<Mat, Mat> EstimateNoDynamicMotion(Mat left, Mat right, Mat next, Mat left_s
 	}
 	cout << counter_dynamic << endl;
 	Mat R, t;
-	/*for (auto& pt : image_points)
-		cv::circle(next, cv::Point(pt.x, pt.y), 3, Scalar(0, 255, 0), -1);
-	cv::imshow("img", next);
-	waitKey(0);*/
 	solvePnPRansac(object_points, image_points, cil.cameraMatrix, noArray(), R, t);
 	return { R, t };
 }
@@ -293,9 +289,6 @@ void VisualNoDynamic(const std::string& left_path, const std::string& left_path_
 		++right_iterator;
 		++next_iterator;
 		++segment_iterator;
-		//std::cout << *left_iterator << std::endl;
-		//std::cout << *right_iterator << std::endl;
-		//std::cout << *next_iterator << std::endl << "___________________________________\n";
 		cout << "I------------> " << i << endl;
 		in << GLOBAL_P.at<float>(0, 3) << " " << GLOBAL_P.at<float>(1, 3) << " " << GLOBAL_P.at<float>(2, 3) << std::endl;
 	}
