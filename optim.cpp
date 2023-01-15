@@ -21,7 +21,6 @@ void Display(const Mat& mtx)
 		std::cout << endl;
 	}
 }
-
 vector<double> GetAnglesAndVec(const Mat Rt)
 {
 	double alpha, beta, gamma;
@@ -47,8 +46,21 @@ vector<double> GetAnglesAndVec(const Mat Rt)
 		beta = M_PI;
 	return { alpha, beta, gamma, Rt.at<float>(0,3), Rt.at<float>(1,3), Rt.at<float>(2,3) };
 }
+Mat GetRotation(Mat T)
+{
+	Mat rotation(Size(3, 3), CV_32F);
+	rotation.at<float>(0, 0) = T.at<float>(0, 0);
+	rotation.at<float>(0, 1) = T.at<float>(0, 1);
+	rotation.at<float>(0, 2) = T.at<float>(0, 2);
+	rotation.at<float>(1, 0) = T.at<float>(1, 0);
+	rotation.at<float>(1, 1) = T.at<float>(1, 1);
+	rotation.at<float>(1, 2) = T.at<float>(1, 2);
+	rotation.at<float>(2, 0) = T.at<float>(2, 0);
+	rotation.at<float>(2, 1) = T.at<float>(2, 1);
+	rotation.at<float>(2, 2) = T.at<float>(2, 2);
 
-
+	return rotation;
+}
 Mat ReconstructFromV4(double* alpha_trans)
 {
 	Mat answer = Mat::eye(4, 4, CV_32F);
@@ -98,10 +110,10 @@ void EstimateAndOptimize(const std::string& left_path, const std::string& right_
 	int counter = 0;
 	Mat GLOBAL_P = Mat::eye(4, 4, CV_32F);
 
-	for (int i = 0; i < NUM_OF_FRAMES; i += buffer)
+	for (int i = 0; i < NUM_OF_FRAMES; i += buffer) // глобальный цикл, в котором бежим по батчам фреймов (локальная оптимизация )
 	{
 		vector<vector<double>> location;
-		fs::directory_iterator copy_left(left_path);
+		fs::directory_iterator copy_left(left_path); 
 		fs::directory_iterator copy_next(left_path);
 
 		std::advance(copy_next, START_KEY_FRAME + counter + 1);
@@ -113,6 +125,7 @@ void EstimateAndOptimize(const std::string& left_path, const std::string& right_
 		counter += vec.size();
 		buffer = vec.size();
 		Mat P = Mat::eye(4, 4, CV_32F);
+
 		for (int jdx = 0; jdx < vec.size() - 1; ++jdx)
 		{
 
@@ -139,41 +152,6 @@ void EstimateAndOptimize(const std::string& left_path, const std::string& right_
 
 				}
 			}
-
-
-			/* Check if pts2d_3d shape is proper for alternative*/
-			/* check alternative */
-			/*
-			if (TRUE)
-			{
-	
-				if (alternative[0].size() == pts3d.size())
-				{
-					for (int i = 0; i < alternative[0].size(); ++i)
-					{
-						for (int j = 0; j < alternative.size(); ++j)
-							cout << alternative[j][i].pt.x << " " << alternative[j][i].pt.y << " | ";
-						cout << endl;
-					}
-				}
-				
-				double z_shift = 0.5; 
-				for (auto& p : pts3d)
-					p[2] -= z_shift;
-				for (int i = 0; i < alternative[0].size(); ++i)
-				{
-					double x = PLeft.at<float>(0, 0) * pts3d[i][0] / pts3d[i][2] + PLeft.at<float>(0, 2);
-					double y = PLeft.at<float>(0, 0) * pts3d[i][1] / pts3d[i][2] + PLeft.at<float>(1, 2);
-					cout << "{ " << alternative[1][i].pt.y << ", " << alternative[1][i].pt.x << "}--{" << x << ", " << y << "} _";
-					cout << endl;
-				}
-
-				return;
-			}*/
-			
-
-
-
 			++left_iterator;
 			++right_iterator;
 			++next_iterator;
@@ -183,9 +161,9 @@ void EstimateAndOptimize(const std::string& left_path, const std::string& right_
 			buffer.second.convertTo(buffer.second, CV_32F);
 			Mat L = T(rot, buffer.second);
 			P *= L.inv();
-			//std::vector<double> a_t = {acos(P.at<float>(0,0)),P.at<float>(0, 3), P.at<float>(1, 3), P.at<float>(2, 3)};
-			std::vector<double> a_t = GetAnglesAndVec(P);
+			std::vector<double> a_t = GetAnglesAndVec(P.inv());
 			location.push_back(a_t);
+
 		}
 		ceres::Problem problem;
 		const int b = location.size();
@@ -228,95 +206,41 @@ void EstimateAndOptimize(const std::string& left_path, const std::string& right_
 					P3[2] = (sin(b)) * dx + (-sin(a) * cos(b)) * dy + (cos(a) * cos(b)) * dz;
 					double predicted_x = PLeft.at<float>(0, 0) * P3[0] / P3[2] + PLeft.at<float>(0, 2);
 					double predicted_y = PLeft.at<float>(0, 0) * P3[1] / P3[2] + PLeft.at<float>(1, 2);
-					//cout << "{" << predicted_x << "," << predicted_y << "},{" << alternative[i + 1][j].pt.y << "," << alternative[i + 1][j].pt.x << "}\n";
-					/*
-					double dx = pts_3d[j][0] - alphas_trans_[i][1];
-					double dy = pts_3d[j][1] - alphas_trans_[i][2];
-					double dz = pts_3d[j][2] - alphas_trans_[i][3];
-					double a = alphas_trans_[i][0];
-					P3[0] = cos(a) * dx - sin(a) * dz;
-					P3[1] = dy;
-					P3[2] = sin(a) * dx + cos(a) * dz;
-					double predicted_x = PLeft.at<float>(0, 0) * P3[0] / P3[2] + PLeft.at<float>(0, 2);
-					double predicted_y = PLeft.at<float>(0, 0) * P3[1] / P3[2] + PLeft.at<float>(1, 2);
-					*/
+
+				
+
 					bool positive = predicted_x >= 0 && predicted_y >= 0;
 					bool diff = abs(predicted_x - alternative[i + 1][j].pt.y) < 50 && abs(predicted_y - alternative[i + 1][j].pt.x) < 50;
 					bool condition = positive && diff;
+
 					if (condition)
 					{
-						ceres::CostFunction* cost_function = SnavelyReprojectionError::Create(double(alternative[i + 1][j].pt.y), double(alternative[i + 1][j].pt.x),
-								PLeft.at<float>(0, 0), PLeft.at<float>(0, 0), PLeft.at<float>(0, 2), PLeft.at<float>(1, 2), pts3d[j]);
-						problem.AddResidualBlock(cost_function, nullptr, alphas_trans_[i] /*pts_3d[j]*/);
-						/*for (int ai = 0; ai < 3; ++ai)
-						{
-							problem.SetParameterLowerBound(alphas_trans[i], ai, -M_PI / 2);
-							problem.SetParameterUpperBound(alphas_trans[i], ai, M_PI / 2);
-						}*/
-					
-						problem.SetParameterLowerBound(alphas_trans_[i], 0, -M_PI / 2);
-						problem.SetParameterUpperBound(alphas_trans_[i], 0, M_PI / 2);
-						/*for (int index = 1; index < 4; ++index)
-						{
-							if (index != 2) //30% вариации 
-							{
-								double abs_ = abs(alphas_trans_[i][index]);
-								double lower_bound = alphas_trans_[i][index] - 0.3 * abs_;
-								double upper_bound = alphas_trans_[i][index] + 0.3 * abs_;
-							}
-							else
-							{
-								problem.SetParameterLowerBound(alphas_trans_[i], 4, -1.0);
-								problem.SetParameterUpperBound(alphas_trans_[i], 4, 1.0);
-							}
-						}*/
+						for (int iqwe = 0; iqwe < 6; ++iqwe)
+							cout << alphas_trans_[i][iqwe] << " ";
+							cout << endl;
+							ceres::CostFunction* cost_function = SnavelyReprojectionError::Create(double(alternative[i + 1][j].pt.y), double(alternative[i + 1][j].pt.x),
+									PLeft.at<float>(0, 0), PLeft.at<float>(0, 0), PLeft.at<float>(0, 2), PLeft.at<float>(1, 2), pts3d[j]);
+							problem.AddResidualBlock(cost_function, nullptr, alphas_trans_[i] /*pts_3d[j]*/);
+						
 					}
-					//double P3[3];
-					//std::cout << pts_3d[j][0] << " " << pts_3d[j][1] << " " << pts_3d[j][2] << endl;
-					//std::cout << alphas_trans[i][1] << " " << alphas_trans[i][2] << " " << alphas_trans[i][3] << endl;
-					//P3[0] = cos(alphas_trans[i][0]) * (pts_3d[j][0] - alphas_trans[i][1]) - sin(alphas_trans[i][0]) * (pts_3d[j][2] - alphas_trans[i][3]);
-					//P3[1] = pts_3d[j][1] - alphas_trans[i][2];
-					//P3[2] = sin(alphas_trans[i][0]) * (pts_3d[j][0] - alphas_trans[i][1]) + cos(alphas_trans[i][0]) * (pts_3d[j][2] - alphas_trans[i][3]);
-					//std::cout << P3[0] << " " << P3[1] << " " << P3[2] << endl;
-					//std::cout << P3[0]/P3[2] << " " << P3[1]/P3[2] << " " << P3[2]/P3[2] << endl;
-					//std::cout << "-----------------------\n";
-
-					//P3[0] = cos(alphas_trans[i][0]) * (pts_3d[j][0]) + sin(alphas_trans[i][0]) * (pts_3d[j][2]) + alphas_trans[i][1];
-					//P3[1] = pts_3d[j][1] + alphas_trans[i][2];
-					//P3[2] = -sin(alphas_trans[i][0]) * (pts_3d[j][0]) + cos(alphas_trans[i][0]) * (pts_3d[j][2]) + alphas_trans[i][3];
-					//cout << PLeft.at<float>(0, 0) * pts_3d[j][0] / pts_3d[j][2] + PLeft.at<float>(0, 2) << " " << PLeft.at<float>(0, 0) * pts_3d[j][1] / pts_3d[j][2] + PLeft.at<float>(1, 2) << endl;
-					//cout << vec[0][j].pt.x  << " " << vec[0][j].pt.y << endl;
-					//double predicted_x = PLeft.at<float>(0, 0) * P3[0] / P3[2] + PLeft.at<float>(0, 2);
-					//double predicted_y = PLeft.at<float>(0, 0) * P3[1] / P3[2] + PLeft.at<float>(1, 2);
-
-					//cout << "{" << alternative[i + 1][j].pt.y << "," << alternative[i + 1][j].pt.x << "}{" << predicted_x << "," << predicted_y << "}\n";
-					//cout << "{" << alphas_trans[i][0] << "," << alphas_trans[i][1] << "," << alphas_trans[i][2] << "," << alphas_trans[i][3] << "\n";
+				
 			}
 		}
-		/*for (auto& el : deep_copy_location)
-		{
-			for (auto& ge : el)
-				cout << ge << " ";
-			cout << endl;
-		}*/
 		ceres::Solver::Options options;
 		options.linear_solver_type = ceres::DENSE_SCHUR;
 		options.minimizer_progress_to_stdout = true;
 		ceres::Solver::Summary summary;
 		ceres::Solve(options, &problem, &summary);
-		/*for (auto& el : deep_copy_location)
-		{
-			for (auto& ge : el)
-				cout << ge << " ";
-			cout << endl;
-		}*/
+
+	
 		for (int unique_i = 0; unique_i < location.size(); ++unique_i)
 		{
 			Mat copy_GLOBAL = GLOBAL_P.clone();
-			copy_GLOBAL *= ReconstructFromV6(alphas_trans_[unique_i]);
+			copy_GLOBAL *= ReconstructFromV6(alphas_trans_[unique_i]).inv();
 			in << copy_GLOBAL.at<float>(0, 3) << " " << copy_GLOBAL.at<float>(1, 3) << " " << copy_GLOBAL.at<float>(2, 3) << "\n";
 			if (unique_i == location.size() - 1)
-				GLOBAL_P *= ReconstructFromV6(alphas_trans_[unique_i]);
+				GLOBAL_P *= ReconstructFromV6(alphas_trans_[unique_i]).inv();
+			
 		}
 
 		for (auto &p : alphas_trans_)
